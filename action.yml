@@ -1,40 +1,41 @@
-name: 'Madara Starknet Foundry Cast compatibility'
-description: 'Integration testing of Madara and Cast compatibility'
+name: "Madara Starknet Foundry Cast compatibility"
+description: "Integration testing of Madara and Cast compatibility"
 runs:
   using: "composite"
   steps:
     - uses: actions/checkout@v3
-      # Get the source files for the custom action as well 
+      # Get the source files for the custom action as well
     - uses: actions/checkout@v3
       with:
         repository: "justinfrevert/madara-foundry-action"
         path: madara-foundry-action
     - uses: actions/cache@v3
       with:
-        path: target/release/madara
-        key:
-          ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}-${{
+        path: |
+          target/production/madara
+        key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}-${{
           github.run_id }}
         fail-on-cache-miss: true
     - name: "Install Scarb and Starknet-Foundry"
       shell: bash
       run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://docs.swmansion.com/scarb/install.sh | sh
-        curl -L https://raw.githubusercontent.com/foundry-rs/starknet-foundry/master/scripts/install.sh | sh  -s -- -v ${{ env.SNCAST_VERSION }}
+        curl --proto '=https' --tlsv1.2 -sSf https://docs.swmansion.com/scarb/install.sh | sh -s -- -v ${{ env.SCARB_VERSION }}
+        curl -L https://raw.githubusercontent.com/foundry-rs/starknet-foundry/master/scripts/install.sh | sh
+        snfoundryup -v ${{ env.SNCAST_VERSION }}
     - name: "Set up Madara"
       shell: bash
       run: |
-        ./target/release/madara setup --from-remote --chain dev
+        ./target/production/madara setup --from-local ./configs --chain dev
     - name: "Start Madara"
       shell: bash
       run: |
-        ./target/release/madara --dev & sleep 5
+        ./target/production/madara --dev & sleep 5
     - name: "Declare Contract"
       shell: bash
       working-directory: madara-foundry-action
       run: |
         # Declare contract and get output
-        DECLARE_OUTPUT=$(sncast --json declare --contract-name HelloStarknetFoundry --max-fee=14530)
+        DECLARE_OUTPUT=$(sncast --json declare --contract-name HelloStarknetFoundry --max-fee=500000)
 
         CLASS_HASH=$(echo "$DECLARE_OUTPUT" | jq -r '.class_hash')
         DECLARE_TX_HASH=$(echo "$DECLARE_OUTPUT" | jq -r '.transaction_hash')
@@ -53,7 +54,7 @@ runs:
       run: |
         CLASS_HASH=${{ env.CLASS_HASH }}
         # Deploy contract and get output
-        DEPLOY_OUTPUT=$(sncast --json deploy --class-hash $CLASS_HASH --max-fee=12530)
+        DEPLOY_OUTPUT=$(sncast --json deploy --class-hash $CLASS_HASH --max-fee=500000)
 
         # Get contract address and tx hash
         CONTRACT_ADDRESS=$(echo "$DEPLOY_OUTPUT" | jq -r '.contract_address')
@@ -71,7 +72,7 @@ runs:
       run: |
         CONTRACT_ADDRESS=${{ env.CONTRACT_ADDRESS }}
         # Invoke a function on the contract and get output
-        INVOKE_TX_HASH=$(sncast --json invoke --max-fee=30000 --contract-address $CONTRACT_ADDRESS --function increase_balance --calldata 500000 | jq '.transaction_hash' | tr -d '"')
+        INVOKE_TX_HASH=$(sncast --json invoke --max-fee=500000 --contract-address $CONTRACT_ADDRESS --function increase_balance --calldata 500000 | jq '.transaction_hash' | tr -d '"')
 
         # Wait for tx hash to be ready
         sleep 7
